@@ -37,6 +37,7 @@
 #define DOOR_2_RED_LED   GPIO_PIN_9
 #define DOOR_2_SWITCH    GPIO_PIN_8
 #define PUSH_TO_LOCK 		 GPIO_PIN_6
+#define EMERGENCY 		 GPIO_PIN_4
 
 /* USER CODE END PTD */
 
@@ -61,7 +62,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-void is_pushed_to_lock_pressed(bool *door_1_unlocked, bool *door_2_unlocked, bool *waiting_on_release_ptr);
+void is_pushed_to_lock_pressed(bool *door_1_unlocked, bool *door_2_unlocked, bool *waiting_on_ptl_release_ptr);
+void is_emergency_pressed(bool *door_1_unlocked, bool *door_2_unlocked, bool *waiting_on_emergency_release_ptr);
 void update_door_1_leds(bool *door_1_unlocked_ptr);
 void check_door_1_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr);
 void update_door_2_leds(bool *door_2_unlocked_ptr);
@@ -107,7 +109,8 @@ int main(void)
 	RetargetInit(&huart2);
 	bool door_1_unlocked = true;
 	bool door_2_unlocked = true;
-	bool waiting_on_release = false;
+	bool waiting_on_ptl_release = false;
+	bool waiting_on_emergency_release = false;
 
   /* USER CODE END 2 */
 
@@ -115,7 +118,8 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-  	is_pushed_to_lock_pressed(&door_1_unlocked, &door_2_unlocked, &waiting_on_release);
+  	is_pushed_to_lock_pressed(&door_1_unlocked, &door_2_unlocked, &waiting_on_ptl_release);
+  	is_emergency_pressed(&door_1_unlocked, &door_2_unlocked, &waiting_on_emergency_release);
   	check_door_1_status(&door_1_unlocked, &door_2_unlocked);
 		update_door_1_leds(&door_1_unlocked);
 		check_door_2_status(&door_1_unlocked, &door_2_unlocked);
@@ -223,6 +227,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PA4 PA6 PA7 PA8 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /*Configure GPIO pins : LD2_Pin PA9 PA10 PA11
                            PA12 */
   GPIO_InitStruct.Pin = LD2_Pin|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
@@ -232,12 +242,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA6 PA7 PA8 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
@@ -245,16 +249,29 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void is_pushed_to_lock_pressed(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, bool *waiting_on_release_ptr)
+void is_pushed_to_lock_pressed(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, bool *waiting_on_ptl_release_ptr)
 {
 	bool pressed_down = HAL_GPIO_ReadPin(GPIOA, PUSH_TO_LOCK) == 0;
 
-	if (!pressed_down && *waiting_on_release_ptr) {
+	if (!pressed_down && *waiting_on_ptl_release_ptr) {
 		*door_1_unlocked_ptr = false;
 		*door_2_unlocked_ptr = false;
-		*waiting_on_release_ptr = false;
+		*waiting_on_ptl_release_ptr = false;
 	} else if (pressed_down) {
-		*waiting_on_release_ptr = true;
+		*waiting_on_ptl_release_ptr = true;
+	}
+}
+
+void is_emergency_pressed(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, bool *waiting_on_emergency_release_ptr)
+{
+	bool pressed_down = HAL_GPIO_ReadPin(GPIOA, EMERGENCY) == 0;
+
+	if (!pressed_down && *waiting_on_emergency_release_ptr) {
+		*door_1_unlocked_ptr = true;
+		*door_2_unlocked_ptr = true;
+		*waiting_on_emergency_release_ptr = false;
+	} else if (pressed_down) {
+		*waiting_on_emergency_release_ptr = true;
 	}
 }
 
