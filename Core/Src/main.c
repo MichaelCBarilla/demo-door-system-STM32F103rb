@@ -32,10 +32,10 @@
 /* USER CODE BEGIN PTD */
 #define DOOR_1_RED_LED	 GPIO_PIN_12
 #define DOOR_1_GREEN_LED GPIO_PIN_11
-#define DOOR_1_SWITCH    GPIO_PIN_7
+#define DOOR_1_OUTSIDE_SWITCH    GPIO_PIN_7
 #define DOOR_2_GREEN_LED GPIO_PIN_10
 #define DOOR_2_RED_LED   GPIO_PIN_9
-#define DOOR_2_SWITCH    GPIO_PIN_8
+#define DOOR_2_OUTSIDE_SWITCH    GPIO_PIN_8
 #define PUSH_TO_LOCK 		 GPIO_PIN_6
 #define EMERGENCY 		 GPIO_PIN_4
 
@@ -62,12 +62,12 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-void is_pushed_to_lock_pressed(bool *door_1_unlocked, bool *door_2_unlocked, bool *waiting_on_ptl_release_ptr);
+void is_pushed_to_lock_pressed(bool *door_1_unlocked, bool *door_2_unlocked, bool *waiting_on_ptl_release_ptr, bool *waiting_on_door_close_ptr);
 void is_emergency_pressed(bool *door_1_unlocked, bool *door_2_unlocked, bool *waiting_on_emergency_release_ptr);
 void update_door_1_leds(bool *door_1_unlocked_ptr);
-void check_door_1_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr);
+void check_door_1_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, bool *waiting_on_door_close_ptr);
 void update_door_2_leds(bool *door_2_unlocked_ptr);
-void check_door_2_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr);
+void check_door_2_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, bool *waiting_on_door_close_ptr);
 
 /* USER CODE END PFP */
 
@@ -111,6 +111,7 @@ int main(void)
 	bool door_2_unlocked = true;
 	bool waiting_on_ptl_release = false;
 	bool waiting_on_emergency_release = false;
+	bool waiting_on_door_close = false;
 
   /* USER CODE END 2 */
 
@@ -118,11 +119,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-  	is_pushed_to_lock_pressed(&door_1_unlocked, &door_2_unlocked, &waiting_on_ptl_release);
+  	is_pushed_to_lock_pressed(&door_1_unlocked, &door_2_unlocked, &waiting_on_ptl_release, &waiting_on_door_close);
   	is_emergency_pressed(&door_1_unlocked, &door_2_unlocked, &waiting_on_emergency_release);
-  	check_door_1_status(&door_1_unlocked, &door_2_unlocked);
+  	check_door_1_status(&door_1_unlocked, &door_2_unlocked, &waiting_on_door_close);
 		update_door_1_leds(&door_1_unlocked);
-		check_door_2_status(&door_1_unlocked, &door_2_unlocked);
+		check_door_2_status(&door_1_unlocked, &door_2_unlocked, &waiting_on_door_close);
 		update_door_2_leds(&door_2_unlocked);
 
     /* USER CODE END WHILE */
@@ -249,11 +250,11 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void is_pushed_to_lock_pressed(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, bool *waiting_on_ptl_release_ptr)
+void is_pushed_to_lock_pressed(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, bool *waiting_on_ptl_release_ptr, bool *waiting_on_door_close_ptr)
 {
 	bool pressed_down = HAL_GPIO_ReadPin(GPIOA, PUSH_TO_LOCK) == 0;
 
-	if (!pressed_down && *waiting_on_ptl_release_ptr) {
+	if (!pressed_down && *waiting_on_ptl_release_ptr && !*waiting_on_door_close_ptr) {
 		*door_1_unlocked_ptr = false;
 		*door_2_unlocked_ptr = false;
 		*waiting_on_ptl_release_ptr = false;
@@ -275,12 +276,16 @@ void is_emergency_pressed(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, 
 	}
 }
 
-void check_door_1_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr)
+void check_door_1_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, bool *waiting_on_door_close_ptr)
 {
-	bool door_1_opened = HAL_GPIO_ReadPin(GPIOA, DOOR_1_SWITCH) == 0;
-
 	/* Check if door 1 is unlocked. */
 	if (*door_1_unlocked_ptr) {
+
+		bool door_1_opened = HAL_GPIO_ReadPin(GPIOA, DOOR_1_OUTSIDE_SWITCH) == 0;
+
+		/* Set boolean to tell push to lock to wait for door to close before locking */
+		*waiting_on_door_close_ptr = door_1_opened;
+
 		/* Check if door 1 is opened. If so, lock door 2. */
 		if (door_1_opened) {
 			*door_2_unlocked_ptr = false;
@@ -304,12 +309,16 @@ void update_door_1_leds(bool *door_1_unlocked_ptr)
 	return;
 }
 
-void check_door_2_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr)
+void check_door_2_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, bool *waiting_on_door_close_ptr)
 {
-	bool door_2_opened = HAL_GPIO_ReadPin(GPIOA, DOOR_2_SWITCH) == 0;
-
 	/* Check if door 2 is unlocked. */
 	if (*door_2_unlocked_ptr) {
+
+		bool door_2_opened = HAL_GPIO_ReadPin(GPIOA, DOOR_2_OUTSIDE_SWITCH) == 0;
+
+		/* Set boolean to tell push to lock to wait for door to close before locking */
+		*waiting_on_door_close_ptr = door_2_opened;
+
 		/* Check if door 2 is opened. If so, lock door 1. */
 		if (door_2_opened) {
 			*door_1_unlocked_ptr = false;
