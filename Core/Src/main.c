@@ -58,7 +58,7 @@ const struct Pin_Layout DOOR_1_OUTSIDE_SWITCH = {GPIOC, GPIO_PIN_10};
 const struct Pin_Layout DOOR_1_INSIDE_SWITCH = {GPIOD, GPIO_PIN_2};
 
 /* Door 2 Pin Layouts. */
-const struct Pin_Layout DOOR_2_RED_LED = {GPIOA, GPIO_PIN_9};
+const struct Pin_Layout DOOR_2_RED_LED = {GPIOC, GPIO_PIN_2};
 const struct Pin_Layout DOOR_2_GREEN_LED = {GPIOC, GPIO_PIN_0};
 const struct Pin_Layout DOOR_2_OUTSIDE_SWITCH = {GPIOC, GPIO_PIN_3};
 const struct Pin_Layout DOOR_2_INSIDE_SWITCH = {GPIOC, GPIO_PIN_1};
@@ -231,8 +231,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LD2_Pin|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
-                          |GPIO_PIN_12, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0|GPIO_PIN_2|GPIO_PIN_11|GPIO_PIN_12, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -240,28 +242,43 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA1 PA4 PA6 PA7
-                           PA8 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_7
-                          |GPIO_PIN_8;
+  /*Configure GPIO pins : PC0 PC2 PC11 PC12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_2|GPIO_PIN_11|GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PC3 PC8 PC10 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_8|GPIO_PIN_10;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PA1 PA4 PA6 PA12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LD2_Pin PA9 PA10 PA11
-                           PA12 */
-  GPIO_InitStruct.Pin = LD2_Pin|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
-                          |GPIO_PIN_12;
+  /*Configure GPIO pin : LD2_Pin */
+  GPIO_InitStruct.Pin = LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PD2 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
@@ -302,11 +319,11 @@ void check_door_1_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, b
 
 	/* Check if opening door 1 from inside */
 	if (opening_door_1_from_inside) {
-
-	}
+		*door_1_unlocked_ptr = true;
+		*door_2_unlocked_ptr = true;
 
 	/* Check if door 1 is unlocked. */
-	if (*door_1_unlocked_ptr) {
+	} else if (*door_1_unlocked_ptr) {
 
 		bool door_1_opened = HAL_GPIO_ReadPin(DOOR_1_OUTSIDE_SWITCH.GPIOx, DOOR_1_OUTSIDE_SWITCH.GPIO_Pin) == 0;
 
@@ -338,8 +355,15 @@ void update_door_1_leds(bool *door_1_unlocked_ptr)
 
 void check_door_2_status(bool *door_1_unlocked_ptr, bool *door_2_unlocked_ptr, bool *waiting_on_door_close_ptr)
 {
+	bool opening_door_2_from_inside = HAL_GPIO_ReadPin(DOOR_2_INSIDE_SWITCH.GPIOx, DOOR_2_INSIDE_SWITCH.GPIO_Pin) == 0;
+
+	/* Check if opening door 1 from inside */
+	if (opening_door_2_from_inside) {
+		*door_1_unlocked_ptr = true;
+		*door_2_unlocked_ptr = true;
+
 	/* Check if door 2 is unlocked. */
-	if (*door_2_unlocked_ptr) {
+	} else if (*door_2_unlocked_ptr) {
 
 		bool door_2_opened = HAL_GPIO_ReadPin(DOOR_2_OUTSIDE_SWITCH.GPIOx, DOOR_2_OUTSIDE_SWITCH.GPIO_Pin) == 0;
 
